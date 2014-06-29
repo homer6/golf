@@ -20,13 +20,23 @@ int main( int argc, char **argv ){
 
 
     std::random_device rd;
-    std::default_random_engine e1( rd() );
 
-    std::uniform_int_distribution<int> uniform_dist( 0, length );
+    //std::default_random_engine e1( rd() );
+    //std::uniform_int_distribution<int> distribution( 0, length );
+
+    std::mt19937 e1( rd() );
+    std::poisson_distribution<int> distribution( length / 2 );
 
     for( int x = 0; x < number_of_values; ++x ){
 
-        cout << possible_characters[ uniform_dist( e1 ) ];
+        int i = distribution( e1 );
+        if( i < 0 ){
+            cout << possible_characters[ 0 ];
+        }else if( i >= length ){
+            cout << possible_characters[ length - 1 ];
+        }else{
+            cout << possible_characters[ i ];
+        }
 
     }
 
