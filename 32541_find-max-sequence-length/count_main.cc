@@ -9,11 +9,42 @@
 #include <functional>
 #include <stdexcept>
 #include <thread>
+#include <memory>
 using namespace std;
 
 typedef unsigned char char_type;
 typedef map<char_type,int> count_map;
-typedef vector<char_type> char_vector;
+typedef unique_ptr<char[]> unique_prt_char_array;
+
+
+struct Buffer{
+
+    Buffer( unsigned long size )
+        :size(size), ptr( new char[size] )
+    {
+
+    }
+
+    Buffer( Buffer&& original )
+        :size( original.size ), ptr( std::move(original.ptr) )
+    {
+
+    }
+
+    Buffer& operator=( Buffer&& original ){
+
+        this->size = original.size;
+        this->ptr = std::move( original.ptr );
+
+        return *this;
+
+    }
+
+
+    unsigned long size;
+    unique_prt_char_array ptr;
+
+};
 
 
 class Worker{
@@ -44,7 +75,7 @@ class Worker{
 
         count_map operator()(){
 
-            constexpr unsigned int buffer_size = 1 << 24; //16M
+            constexpr unsigned int max_buffer_size = 1 << 24; //16M
 
 
             if( this->end_index == 0 ){
@@ -57,13 +88,13 @@ class Worker{
             cout << "span: " << span << endl;
 
 
-            if( span < buffer_size ){
+            if( span < max_buffer_size ){
 
-                char *buffer = new char[ buffer_size ];
-
+                Buffer buffer( span );
 
                 this->input_file.seekg( this->start_index );
-                input_file.readsome( buffer, span );
+
+                input_file.readsome( buffer.ptr.get(), span );
 
                 if( !input_file.fail() ){
 
@@ -71,23 +102,14 @@ class Worker{
 
                     if( bytes_read > 0 ){
 
-                        char_vector current_vector( buffer, buffer + (bytes_read-1) );
-                        delete[] buffer;
-
-                        this->count( std::move(current_vector) );
+                        this->count( std::move(buffer) );
 
                     }else{
-
-                        delete[] buffer;
                         throw std::runtime_error( "Zero bytes read." );
-
                     }
 
                 }else{
-
-                    delete[] buffer;
                     throw std::runtime_error( "Error reading input file." );
-
                 }
 
             }else{
@@ -113,33 +135,14 @@ class Worker{
                 }
 
                 Worker worker1( this->filename, this->start_index, boundary_index - 1 );
-                promise<count_map> promise1;
-                auto future1 = promise1.get_future();
-                thread thread1([]( Worker& worker, promise<count_map> &&current_promise ){
-                    try{
-                        current_promise.set_value( std::move(worker()) );
-                    }catch(...){
-                        current_promise.set_exception( std::current_exception() );
-                    }
-                }, std::ref(worker1), std::move(promise1));
+                auto future1 = async( std::launch::async, [&worker1](){ return worker1(); } );
 
                 cout << "task 1: " << this->start_index << endl;
 
                 Worker worker2( this->filename, boundary_index - 1, this->end_index );
-                promise<count_map> promise2;
-                auto future2 = promise2.get_future();
-                thread thread2([]( Worker& worker, promise<count_map> &&current_promise ){
-                    try{
-                        current_promise.set_value( std::move(worker()) );
-                    }catch(...){
-                        current_promise.set_exception( std::current_exception() );
-                    }
-                }, std::ref(worker2), std::move(promise2));
+                auto future2 = async( std::launch::async, [&worker2](){ return worker2(); } );
 
                 cout << "task 2: " << boundary_index - 1 << endl;
-
-                thread1.join();
-                thread2.join();
 
                 this->counts = this->mergeCountMaps( future1.get(), future2.get() );
 
@@ -153,17 +156,24 @@ class Worker{
 
 
 
-        void count( char_vector characters ){
+        void count( Buffer &&characters ){
 
             char_type previous_char = -1;
             int current_count = 0;
 
-            for( char_type current_char : characters ){
+            unsigned long num_characters = characters.size;
+
+            for( unsigned long x = 0; x < num_characters; ++x ){
+
+                char_type current_char = characters.ptr.get()[ x ];
 
                 if( !this->counts.count(current_char) ){
+
                     this->counts[current_char] = 1;
                     current_count = 1;
+
                 }else{
+
                     if( previous_char == current_char ){
                         current_count++;
                         if( this->counts[current_char] < current_count ){
@@ -172,6 +182,7 @@ class Worker{
                     }else{
                         current_count = 1;
                     }
+
                 }
 
                 previous_char = current_char;

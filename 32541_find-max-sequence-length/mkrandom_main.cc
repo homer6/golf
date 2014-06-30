@@ -16,18 +16,18 @@ int main( int argc, char **argv ){
     string possible_characters( "abcdefghijklmnopqrstuvwxyz" );
     int length = possible_characters.length();
 
-    int number_of_values = stoi( string(argv[1]) );
+    unsigned long number_of_values = stoul( string(argv[1]) );
 
 
     std::random_device rd;
 
-    //std::default_random_engine e1( rd() );
-    //std::uniform_int_distribution<int> distribution( 0, length );
+    std::default_random_engine e1( rd() );
+    std::uniform_int_distribution<int> distribution( 0, length );
 
-    std::mt19937 e1( rd() );
-    std::poisson_distribution<int> distribution( length / 2 );
+    //std::mt19937 e1( rd() );
+    //std::poisson_distribution<int> distribution( length / 2 );
 
-    for( int x = 0; x < number_of_values; ++x ){
+    for( unsigned long x = 0; x < number_of_values; ++x ){
 
         int i = distribution( e1 );
         if( i < 0 ){
