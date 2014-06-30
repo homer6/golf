@@ -79,18 +79,14 @@ class Worker{
                     }else{
 
                         delete[] buffer;
-                        cerr << "Error reading input file." << endl;
-                        //throw std::runtime_error( "Zero bytes read." );
-                        return this->counts;
+                        throw std::runtime_error( "Zero bytes read." );
 
                     }
 
                 }else{
 
                     delete[] buffer;
-                    cerr << "Error reading input file." << endl;
-                    //throw std::runtime_error( "Error reading input file." );
-                    return this->counts;
+                    throw std::runtime_error( "Error reading input file." );
 
                 }
 
@@ -120,7 +116,11 @@ class Worker{
                 promise<count_map> promise1;
                 auto future1 = promise1.get_future();
                 thread thread1([]( Worker& worker, promise<count_map> &&current_promise ){
-                    current_promise.set_value( std::move(worker()) );
+                    try{
+                        current_promise.set_value( std::move(worker()) );
+                    }catch(...){
+                        current_promise.set_exception( std::current_exception() );
+                    }
                 }, std::ref(worker1), std::move(promise1));
 
                 cout << "task 1: " << this->start_index << endl;
@@ -129,7 +129,11 @@ class Worker{
                 promise<count_map> promise2;
                 auto future2 = promise2.get_future();
                 thread thread2([]( Worker& worker, promise<count_map> &&current_promise ){
-                    current_promise.set_value( std::move(worker()) );
+                    try{
+                        current_promise.set_value( std::move(worker()) );
+                    }catch(...){
+                        current_promise.set_exception( std::current_exception() );
+                    }
                 }, std::ref(worker2), std::move(promise2));
 
                 cout << "task 2: " << boundary_index - 1 << endl;
@@ -140,34 +144,6 @@ class Worker{
                 this->counts = this->mergeCountMaps( future1.get(), future2.get() );
 
                 cout << "-----" << endl;
-
-
-
-
-
-                /*
-                packaged_task<count_map(Worker&)> task1();
-                future<count_map> result1 = task1.get_future();
-
-                task1( worker1 );
-
-                cout << "task 1: " << this->start_index << endl;
-
-                Worker worker2( this->filename, boundary_index - 1, this->end_index );
-                packaged_task<count_map(Worker&)> task2([]( Worker& worker ){
-                    return worker();
-                });
-                future<count_map> result2 = task2.get_future();
-
-                task2( worker2 );
-
-                cout << "task 2: " << boundary_index - 1 << endl;
-
-                this->counts = this->mergeCountMaps( std::move(result1.get()), std::move(result2.get()) );
-
-                cout << "-----" << endl;
-
-                */
 
             }
 
